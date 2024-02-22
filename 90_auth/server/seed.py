@@ -4,21 +4,28 @@ from random import choice as rc
 from sqlalchemy import func
 
 from app import app 
-from models import Coffee, Customer, Order, db 
+from models import Coffee, Customer, Order, User, db 
 
 with app.app_context(): # create app context with app.app_context()
+    User.query.delete()
     Coffee.query.delete()
     Customer.query.delete()
     Order.query.delete()
 
     fake = Faker() # create and initialize a faker generator
 
+    manager = User(
+        name="manager"
+    )
+    manager.password_hash = '123'
+
     #create some seeds for coffee and commit them to the db
     cappuccino = Coffee(
         name="cappuccino",
         image="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Cappuccino_at_Sightglass_Coffee.jpg/440px-Cappuccino_at_Sightglass_Coffee.jpg",
         price=4.50,
-        description="steamed milk and foam on top of a shot of espresso"
+        description="steamed milk and foam on top of a shot of espresso",
+        user_id=1
     )
 
     espresso = Coffee(
@@ -64,6 +71,7 @@ with app.app_context(): # create app context with app.app_context()
         )
         customer_list.append(customer)
 
+    db.session.add_all([manager])
     db.session.add_all([cappuccino, espresso])
     db.session.add_all(coffee_list)
     db.session.add_all(customer_list)

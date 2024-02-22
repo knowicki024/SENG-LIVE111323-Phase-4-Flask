@@ -1,17 +1,7 @@
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy_serializer import SerializerMixin
 
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import MetaData
-from sqlalchemy.ext.associationproxy import association_proxy
-
-metadata = MetaData(
-                naming_convention={
-                    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"
-                })
-
-
-db = SQLAlchemy(metadata=metadata)
-
+from config import db, bcrypt
 
 class Coffee(db.Model, SerializerMixin): 
     __tablename__ = "coffees" 
@@ -36,6 +26,8 @@ class Coffee(db.Model, SerializerMixin):
 
     #delete-orphan: when an object is removed (deleted) from the parent's
     #collection, SQLAlchemy removes related objects.
+
+    user_id = db.Column(db.Integer(), db.ForeignKey('users.id'))
 
     def __repr__(self):
         return f'<Coffee {self.id}, {self.name}, {self.price} >'
@@ -87,3 +79,39 @@ class Order(db.Model, SerializerMixin):#intermidiary class / join table
 
     def __repr__(self):
         return f'<Order {self.id}, {self.date}, {self.coffee.name}, {self.customer.name}>'
+    
+
+class User(db.Model, SerializerMixin):
+    __tablename__ = 'users'
+
+    serialize_rules = ( '-_password_hash',)    
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)  
+    _password_hash = db.Column(db.String)
+
+    coffees = db.relationship('Coffee', backref='user')
+
+    #add password_hash property and authenticate instance method here
+    @hybrid_property
+    #getter
+    def password_hash(self):
+        #not going to `return` the password bc we don't want user to see the password! 
+        raise AttributeError('Password hashes may not be viewed.')
+    
+    #setter
+    @password_hash.setter
+    def password_hash(self, password):
+        #pass in the user typed password
+        #use the bcrypt to encode the password
+        new_hashed_password = bcrypt.generate_password_hash(password.encode('utf-8')) #take in password from the argument, then encode it
+        self._password_hash = new_hashed_password.decode('utf-8')
+
+    #check if the pw is correct
+    def authenticate(self, password):
+        return bcrypt.check_password_hash(
+            self._password_hash, password.encode('utf-8'))
+        #check if inputted pw matches the user's pw
+
+    def __repr__(self):
+        return f'<User {self.id}  username:{self.name}>'
