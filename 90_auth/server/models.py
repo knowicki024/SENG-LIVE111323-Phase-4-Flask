@@ -1,22 +1,13 @@
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy_serializer import SerializerMixin
 
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import MetaData
-from sqlalchemy.ext.associationproxy import association_proxy
-
-metadata = MetaData(
-                naming_convention={
-                    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"
-                })
-
-
-db = SQLAlchemy(metadata=metadata)
+from config import db, bcrypt
 
 
 class Coffee(db.Model, SerializerMixin): 
     __tablename__ = "coffees" 
 
-    serialize_rules = ('-orders.coffee', )
+    serialize_rules = ('-orders.coffee',  )
 
     id = db.Column(db.Integer, primary_key=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
@@ -28,14 +19,8 @@ class Coffee(db.Model, SerializerMixin):
 
     # Relationship mapping the coffee to related orders
     orders = db.relationship('Order', back_populates='coffee', cascade='all, delete-orphan')
-    #back_populates attribute is used to define a bidirectional 
-    #relationship between two tables or models
-
-    #back_populates:how changes made to one side of the relationship 
-    #should be reflected on the other side. 
-
-    #delete-orphan: when an object is removed (deleted) from the parent's
-    #collection, SQLAlchemy removes related objects.
+    
+    user_id = db.Column(db.Integer(), db.ForeignKey("users.id"))
 
     def __repr__(self):
         return f'<Coffee {self.id}, {self.name}, {self.price} >'
@@ -77,13 +62,45 @@ class Order(db.Model, SerializerMixin):#intermidiary class / join table
     #Foreign key to store the customer id
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'))
 
-    # Relationship mapping the order to related coffee
     coffee = db.relationship('Coffee', back_populates='orders')
-    #back_populates attribute is used to define a bidirectional relationship between two tables or models
-    #back_populates:how changes made to one side of the relationship should be reflected on the other side.
-
-    # Relationship mapping the order to related customer
+    
     customer=db.relationship('Customer', back_populates='orders')
 
     def __repr__(self):
         return f'<Order {self.id}, {self.date}, {self.coffee.name}, {self.customer.name}>'
+    
+
+class User(db.Model, SerializerMixin):
+    __tablename__ = 'users'
+
+    serialize_rules = ('-_password_hash', '-coffees.user', )
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    _password_hash = db.Column(db.String)
+
+    coffees = db.relationship('Coffee', backref='user')
+
+    @hybrid_property
+    #getter
+    def password_hash(self):
+        # return self._password_hash
+        raise AttributeError("password hashes may not be viewed.")
+    
+    #setter
+    @password_hash.setter
+    def password_hash(self, password):
+        new_hashed_password = bcrypt.generate_password_hash(password.encode('utf-8'))
+        
+
+        self._password_hash = new_hashed_password.decode('utf-8')
+
+    def authenticate(self, password):
+        return bcrypt.check_password_hash(
+            self._password_hash,
+            password.encode('utf-8')
+        )
+    
+    def __repr__(self):
+        return f'<User {self.id} username: {self.name}>'
+

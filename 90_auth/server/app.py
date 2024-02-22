@@ -1,28 +1,11 @@
-from flask import Flask, request, make_response, jsonify 
-from flask_migrate import Migrate 
-from models import db, Coffee, Order, Customer # import sqlal db, Coffee, Order, Customer class 
+from flask import request, make_response, session, jsonify
+from flask_restful import Resource
+from sqlalchemy.exc import IntegrityError
+
+from config import app, api, db
+
+from models import Coffee, Order, Customer, User
 from datetime import datetime
-
-#inherit Api and Resource from flask_restful
-from flask_restful import Api, Resource
-
-# create instances of Flask class
-app = Flask(__name__) #for Flask to know where to look for 
-
-# configuration  
-app.config["SQLALCHEMY_DATABASE_URI"] = 'sqlite:///app.db'
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.json.compact = False
-# Note: `app.json.compact = False` configures JSON responses to print on indented lines
-
-# migrate the db 
-migrate = Migrate(app, db)
-
-# connect the db to the app
-db.init_app(app)
-
-# initialize the Api
-api = Api(app)
 
 # create dynamic routes decorator
 @app.route("/") # route decorator 
@@ -209,7 +192,33 @@ class Customers(Resource):
 api.add_resource(Customers, '/customers/<int:id>')
 
 
+class Users(Resource):
+    def get(self):
+        all_users = [ users.to_dict() for users in User.query.all()]
 
+        return make_response(all_users, 200)
+    
+api.add_resource(Users, '/users')
+
+class Signup(Resource):
+    def post(self):
+        new_user = User(
+            name=request.get_json()['name']
+            # _password_hash=request.get_json()['password']
+        )
+        new_user.password_hash = request.get_json()['password']
+
+        db.session.add(new_user)
+        db.session.commit()
+
+        session['user_id'] = new_user.id
+
+        response = make_response(
+            new_user.to_dict(),
+            201
+        )
+        return response
+api.add_resource(Signup, '/signup')
 
 # in terminal 
 # $flask db init
